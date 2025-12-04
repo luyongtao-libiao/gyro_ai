@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36616.10 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gyrodemo", "gyrodemo.vcxproj", "{A549449B-1EE9-174D-E895-D34943683302}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|VisualGDB = Debug|VisualGDB
+		Release|VisualGDB = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A549449B-1EE9-174D-E895-D34943683302}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
+		{A549449B-1EE9-174D-E895-D34943683302}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
+		{A549449B-1EE9-174D-E895-D34943683302}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
+		{A549449B-1EE9-174D-E895-D34943683302}.Release|VisualGDB.Build.0 = Release|VisualGDB
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7FF1B36E-91D5-4709-BB87-2C62E96C8739}
+	EndGlobalSection
+EndGlobal
