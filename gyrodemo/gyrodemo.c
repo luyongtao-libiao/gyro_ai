@@ -38,6 +38,7 @@ osThreadId LEDThread1Handle, LEDThread2Handle;
 /* Private function prototypes -----------------------------------------------*/
 static void LED_Thread1(void const *argument);
 static void LED_Thread2(void const *argument);
+static void SystemClock_Config(void); // 系统时钟配置：HSE=8MHz，PLL×9，SYSCLK=72MHz
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -54,7 +55,8 @@ int main(void)
        - Set NVIC Group Priority to 4
        - Global MSP (MCU Support Package) initialization
      */
-	HAL_Init();  
+  HAL_Init();                      // 初始化HAL库
+  SystemClock_Config();            // 配置系统时钟到72MHz（HSE 8MHz，经PLL×9）
 	
 	__GPIOB_CLK_ENABLE();
 	GPIO_InitTypeDef GPIO_InitStructure;
@@ -84,6 +86,42 @@ int main(void)
 	  /* We should never get here as control is now taken by the scheduler */
 	for (;;)
 		;
+}
+
+static void SystemClock_Config(void)
+{ // STM32F103时钟配置：HSE=8MHz，SYSCLK=72MHz，AHB=72MHz，APB1=36MHz，APB2=72MHz
+  RCC_OscInitTypeDef RCC_OscInitStruct;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+  __HAL_RCC_AFIO_CLK_ENABLE();   // 使能AFIO时钟
+  __HAL_RCC_PWR_CLK_ENABLE();    // 使能PWR时钟
+
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE; // 选择外部晶振
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;                   // 使能HSE
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;    // HSE预分频1
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;                   // 保持HSI可用
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;               // 使能PLL
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;       // PLL源选择HSE
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;               // PLL倍频×9: 8MHz→72MHz
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    while (1) { }              // 配置失败，停机
+  }
+
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK |
+                  RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2; // 配置系统总线时钟
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;  // 系统时钟源选择PLL
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;         // HCLK=SYSCLK=72MHz
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;          // APB1=36MHz（≤36MHz限制）
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;          // APB2=72MHz
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    while (1) { }              // 配置失败，停机
+  }
+
+  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq() / 1000);          // 配置1ms SysTick
+  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);        // Systick时钟源HCLK
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);                   // 设置SysTick中断优先级
 }
 
 void SysTick_Handler(void)

@@ -33,6 +33,15 @@
       <FavoritesOnly>false</FavoritesOnly>
     </LiveVariablePreferences>
     <Suggestions />
-    <HardwareRegisters />
+    <HardwareRegisters>
+      <HardwareRegisterRecord>
+        <Name>r0</Name>
+        <State>
+          <IsFavorite>false</IsFavorite>
+          <IsLive>false</IsLive>
+          <LastUsed>134093227109138129</LastUsed>
+        </State>
+      </HardwareRegisterRecord>
+    </HardwareRegisters>
   </DebugPreferences>
 </VisualGDBUserPreferences>
