@@ -67,13 +67,13 @@ int main(void)
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	/* Thread 1 definition */
-	osThreadDef(LED1, LED_Thread1, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
+	// osThreadDef(LED1, LED_Thread1, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
   
 	 /*  Thread 2 definition */
 	osThreadDef(LED2, LED_Thread2, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
   
 	/* Start thread 1 */
-	LEDThread1Handle = osThreadCreate(osThread(LED1), NULL);
+	// LEDThread1Handle = osThreadCreate(osThread(LED1), NULL);
   
 	/* Start thread 2 */
 	LEDThread2Handle = osThreadCreate(osThread(LED2), NULL);
