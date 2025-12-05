@@ -33,12 +33,15 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
-osThreadId LEDThread1Handle, LEDThread2Handle;
+osThreadId LEDThread1Handle, LEDThread2Handle, GyroThreadHandle;
+SPI_HandleTypeDef hspi2;
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
+static void MX_SPI2_Init(void);
 static void LED_Thread1(void const *argument);
 static void LED_Thread2(void const *argument);
+static void Gyro_Thread(void const *argument);
 
 /* Private functions ---------------------------------------------------------*/
 
@@ -95,6 +98,93 @@ static void SystemClock_Config(void)
 }
 
 /**
+  * @brief SPI MSP Initialization
+  *        This function configures the hardware resources used for SPI2
+  * @param hspi: SPI handle pointer
+  * @retval None
+  */
+void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
+{
+	GPIO_InitTypeDef GPIO_InitStruct = {0};
+	
+	if(hspi->Instance == SPI2)
+	{
+		/* Peripheral clock enable */
+		__HAL_RCC_SPI2_CLK_ENABLE();
+		__HAL_RCC_GPIOB_CLK_ENABLE();
+		
+		/**SPI2 GPIO Configuration    
+		PB13     ------> SPI2_SCK
+		PB14     ------> SPI2_MISO
+		PB15     ------> SPI2_MOSI 
+		*/
+		GPIO_InitStruct.Pin = GPIO_PIN_13 | GPIO_PIN_15;
+		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+		HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+		GPIO_InitStruct.Pin = GPIO_PIN_14;
+		GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+		GPIO_InitStruct.Pull = GPIO_NOPULL;
+		HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	}
+}
+
+/**
+  * @brief SPI MSP De-Initialization
+  * @param hspi: SPI handle pointer
+  * @retval None
+  */
+void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
+{
+	if(hspi->Instance == SPI2)
+	{
+		/* Peripheral clock disable */
+		__HAL_RCC_SPI2_CLK_DISABLE();
+		
+		/**SPI2 GPIO Configuration    
+		PB13     ------> SPI2_SCK
+		PB14     ------> SPI2_MISO
+		PB15     ------> SPI2_MOSI 
+		*/
+		HAL_GPIO_DeInit(GPIOB, GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15);
+	}
+}
+
+/**
+  * @brief SPI2 Initialization Function
+  *        SPI2 pins for STM32F103:
+  *        - SCK:  PB13
+  *        - MISO: PB14
+  *        - MOSI: PB15
+  *        - NSS:  PB12 (optional, can be controlled as GPIO)
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+	/* SPI2 parameter configuration*/
+	hspi2.Instance = SPI2;
+	hspi2.Init.Mode = SPI_MODE_MASTER;
+	hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi2.Init.NSS = SPI_NSS_SOFT;
+	hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;  // 36MHz/8 = 4.5MHz
+	hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi2.Init.CRCPolynomial = 10;
+	
+	if (HAL_SPI_Init(&hspi2) != HAL_OK)
+	{
+		// Initialization Error
+		while(1);
+	}
+}
+
+/**
   * @brief  Main program
   * @param  None
   * @retval None
@@ -112,9 +202,21 @@ int main(void)
 	/* Configure the system clock to 72 MHz */
 	SystemClock_Config();
 	
+	/* Initialize SPI2 */
+	MX_SPI2_Init();
+	
 	__GPIOB_CLK_ENABLE();
 	GPIO_InitTypeDef GPIO_InitStructure;
 
+	/* Initialize SPI2 CS pin (PB12) as GPIO output */
+	GPIO_InitStructure.Pin = GPIO_PIN_12;
+	GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
+	GPIO_InitStructure.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);  // CS idle high
+
+	/* Initialize LED pin (PB9) */
 	GPIO_InitStructure.Pin = GPIO_PIN_9 | GPIO_PIN_9;
 
 	GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_PP;
@@ -128,11 +230,17 @@ int main(void)
 	 /*  Thread 2 definition */
 	osThreadDef(LED2, LED_Thread2, osPriorityNormal, 0, configMINIMAL_STACK_SIZE);
   
+	/* Gyro thread definition */
+	osThreadDef(GYRO, Gyro_Thread, osPriorityNormal, 0, 256);
+  
 	/* Start thread 1 */
 	// LEDThread1Handle = osThreadCreate(osThread(LED1), NULL);
   
 	/* Start thread 2 */
 	LEDThread2Handle = osThreadCreate(osThread(LED2), NULL);
+  
+	/* Start gyro thread */
+	GyroThreadHandle = osThreadCreate(osThread(GYRO), NULL);
   
 	/* Start scheduler */
 	osKernelStart();
@@ -184,6 +292,50 @@ static void LED_Thread2(void const *argument)
 	{
 		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_9);
 		osDelay(200);
+	}
+}
+
+/**
+  * @brief  Gyro thread
+  * @param  argument not used
+  * @retval None
+  */
+static void Gyro_Thread(void const *argument)
+{
+	(void) argument;
+	uint8_t txData[2];
+	uint8_t rxData[2];
+	uint8_t readValue = 0;
+  
+	for (;;)
+	{
+		// Test 1: Write value 5 to register 0x0B
+		txData[0] = ((0xb << 1) & 0x7E) | 0x00;  // Write command (bit 7 = 1 for write)
+		txData[1] = 0x05;          // Data to write: 5
+		
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+		HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
+		
+		// Delay 10ms
+		osDelay(10);
+		
+		// Test 2: Read back from register 0x0B
+		txData[0] = ((0xb << 1) & 0x7E) | 0x80;;  // Read command (bit 7 = 0 for read)
+		rxData[0] = 0;
+		
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+		HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);  // Send 1 byte, receive 1 byte
+    txData[0] = 0x00; // Dummy byte to clock out the data
+    HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
+		
+		readValue = rxData[0];  // The read data is in the first byte
+		
+		// Here you can check if readValue == 5 to verify communication
+		// For debugging: set a breakpoint here to check readValue
+		
+		osDelay(100);  // 100ms period
 	}
 }
 
