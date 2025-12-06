@@ -28,7 +28,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <stm32f1xx_hal.h>
 #include <../CMSIS_RTOS/cmsis_os.h>
-
+#include "xv7011.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
@@ -183,7 +183,8 @@ static void MX_SPI2_Init(void)
 		while(1);
 	}
 }
-
+XV7011_Data_t data1;
+angle_integrator_t integrator;
 /**
   * @brief  Main program
   * @param  None
@@ -307,35 +308,85 @@ static void Gyro_Thread(void const *argument)
 	uint8_t rxData[2];
 	uint8_t readValue = 0;
   
+	uint8_t cmd = 2;
+  XV7011_Init(&integrator);
+	// txData[0] = 2;
+	// txData[1] = 0x0D;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
+	// txData[0] = 0x1f;
+	// txData[1] = 0;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // CS high
+	// txData[0] = 0x3;
+	// txData[1] = 0x40;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // CS high
+	
+	// txData[0] = 0x0b;
+	// txData[1] = 5;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // CS high
+	// txData[0] = 0x0c;
+	// txData[1] = 5;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 1, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // CS high
+	// osDelay(100);
+	// txData[0] = 0x03;
+	// txData[1] = 00;
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET); // CS low
+	// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+	// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET); // CS high
+	// //osDelay(100);
+	// osDelay(100);
+	
 	for (;;)
 	{
 		// Test 1: Write value 5 to register 0x0B
-		txData[0] = ((0xb << 1) & 0x7E) | 0x00;  // Write command (bit 7 = 1 for write)
-		txData[1] = 0x05;          // Data to write: 5
+		// txData[0] = ((0xb << 1) & 0x7E) | 0x00;  // Write command (bit 7 = 1 for write)
+		// txData[1] = 0x01;          // Data to write: 5
 		
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
-		HAL_SPI_Transmit(&hspi2, txData, 2, 100);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
+		// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+		// HAL_SPI_Transmit(&hspi2, txData, 2, 100);
+		// HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
 		
 		// Delay 10ms
-		osDelay(10);
+		// osDelay(10);
 		
 		// Test 2: Read back from register 0x0B
-		txData[0] = ((0xb << 1) & 0x7E) | 0x80;;  // Read command (bit 7 = 0 for read)
+		txData[0] = ((0x4) | 0x80);  // Read command (bit 7 = 0 for read)
 		rxData[0] = 0;
 		
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
-		HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);  // Send 1 byte, receive 1 byte
-    txData[0] = 0x00; // Dummy byte to clock out the data
-    HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);
+		// HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);  // Send 1 byte, receive 1 byte
+    // txData[0] = 0x00; // Dummy byte to clock out the data
+		// rxData[0] = 0;
+    // HAL_SPI_TransmitReceive(&hspi2, txData, rxData, 1, 100);
+    // 发送地址（读命令）
+		cmd = 0x83;
+		HAL_SPI_Transmit(&hspi2, &cmd, 1, HAL_MAX_DELAY);
+    
+    // 接收数据（发送 dummy byte）
+    cmd = 0;
+		HAL_SPI_Receive(&hspi2, &rxData[0], 1, HAL_MAX_DELAY);
 		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);    // CS high
 		
-		readValue = rxData[0];  // The read data is in the first byte
+		// readValue = rxData[0];  // The read data is in the first byte
 		
+    
+		XV7011_ReadAllData(&data1);
+     
+    // 4. 积分计算
+    integrator.angle += (data1.angular_rate * 0.01f*4);  // 假设周期为10ms
 		// Here you can check if readValue == 5 to verify communication
 		// For debugging: set a breakpoint here to check readValue
 		
-		osDelay(100);  // 100ms period
+		osDelay(10);  // 100ms period
 	}
 }
 
